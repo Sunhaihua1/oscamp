@@ -23,6 +23,7 @@ pub struct EarlyAllocator<const PAGE_SIZE: usize> {
     b_pos: usize,
     p_pos: usize,
     end: usize,
+    count: usize,
 }
 
 impl<const PAGE_SIZE: usize> EarlyAllocator<PAGE_SIZE> {
@@ -32,6 +33,7 @@ impl<const PAGE_SIZE: usize> EarlyAllocator<PAGE_SIZE> {
             b_pos: 0,
             p_pos: 0,
             end: 0,
+            count: 0,
         }
     }
 }
@@ -42,6 +44,7 @@ impl<const PAGE_SIZE: usize> BaseAllocator for EarlyAllocator<PAGE_SIZE> {
         self.end = start + size;
         self.b_pos = start;
         self.p_pos = self.end;
+        self.count = 0;
     }
     fn add_memory(&mut self, _start: usize, _size: usize) -> AllocResult {
         Err(AllocError::NoMemory)
@@ -58,9 +61,16 @@ impl<const PAGE_SIZE: usize> ByteAllocator for EarlyAllocator<PAGE_SIZE> {
             return Err(AllocError::NoMemory);
         }
         self.b_pos = new_pos + size;
+        self.count += 1;
         Ok(NonNull::new(new_pos as *mut u8).unwrap())
     }
     fn dealloc(&mut self, _ptr: NonNull<u8>, _layout: Layout) {
+        if self.count > 0 {
+            self.count -= 1;
+        }
+        if self.count == 0 {
+            self.b_pos = self.start;
+        }
         // Do nothing
     }
     fn total_bytes(&self) -> usize {
